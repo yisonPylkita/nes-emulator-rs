@@ -138,9 +138,9 @@ mod test {
 
     #[test]
     fn status_tests() {
-        // TODO: write these tests
         assert_eq!(generate_new_status(0x00, 0x00), 0x02);
         assert_eq!(generate_new_status(0x00, 0x80), 0x80);
-        assert_eq!(generate_new_status(0x80, 0x00), 0x00);
+        assert_eq!(generate_new_status(0x80, 0x00), 0x02);
+        assert_eq!(generate_new_status(0x82, 0x00), 0x02);
     }
 }
