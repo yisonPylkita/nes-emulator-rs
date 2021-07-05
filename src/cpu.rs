@@ -2,6 +2,7 @@ use anyhow::{anyhow, Result};
 
 pub struct Cpu {
     pub reg_a: u8,
+    pub reg_x: u8,
     pub status: u8,
     pub pc: u16,
 }
@@ -10,6 +11,7 @@ impl Cpu {
     pub fn new() -> Cpu {
         Cpu {
             reg_a: 0,
+            reg_x: 0,
             status: 0,
             pc: 0,
         }
@@ -31,6 +33,19 @@ impl Cpu {
                     self.reg_a = code[self.pc as usize];
                     self.pc += 1;
                     if self.reg_a == 0x00 {
+                        self.status |= 0b0000_0010;
+                    } else {
+                        self.status &= 0b1111_1101;
+                    }
+                    if self.reg_a & 0b1000_0000 != 0 {
+                        self.status |= 0b1000_0000;
+                    } else {
+                        self.status &= 0b0111_1111;
+                    }
+                }
+                0xaa => {
+                    self.reg_x = self.reg_a;
+                    if self.reg_a == 0 {
                         self.status |= 0b0000_0010;
                     } else {
                         self.status &= 0b1111_1101;
@@ -74,7 +89,7 @@ mod test {
     }
 
     #[test]
-    fn execute_lda_with_value_with_bit_seven_seyt() {
+    fn execute_lda_with_value_with_bit_7_set() {
         let mut cpu = Cpu::new();
         assert_ok!(cpu.execute(vec![0xa9, 0x80]));
 
@@ -82,5 +97,44 @@ mod test {
         assert_eq!(cpu.reg_a, 0x80);
         assert_eq!(cpu.status, 0x80);
         assert_eq!(cpu.pc, 2);
+    }
+
+    #[test]
+    fn execute_tax_for_a_clean_cpu() {
+        let mut cpu = Cpu::new();
+        assert_ok!(cpu.execute(vec![0xaa]));
+
+        assert_eq!(cpu.reg_a, 0x00);
+        assert_eq!(cpu.reg_x, 0x00);
+        assert_eq!(cpu.status, 0x02);
+        assert_eq!(cpu.pc, 1);
+    }
+
+    #[test]
+    fn execute_tax_for_reg_a_between_1_and_7f() {
+        for reg_a in 0x01..=0x7f {
+            let mut cpu = Cpu::new();
+            cpu.reg_a = reg_a;
+            assert_ok!(cpu.execute(vec![0xaa]));
+
+            assert_eq!(cpu.reg_a, reg_a);
+            assert_eq!(cpu.reg_x, reg_a);
+            assert_eq!(cpu.status, 0x00);
+            assert_eq!(cpu.pc, 1);
+        }
+    }
+
+    #[test]
+    fn execute_tax_for_reg_a_between_80_and_ff() {
+        for reg_a in 0x80..=0xff {
+            let mut cpu = Cpu::new();
+            cpu.reg_a = reg_a;
+            assert_ok!(cpu.execute(vec![0xaa]));
+
+            assert_eq!(cpu.reg_a, reg_a);
+            assert_eq!(cpu.reg_x, reg_a);
+            assert_eq!(cpu.status, 0x80);
+            assert_eq!(cpu.pc, 1);
+        }
     }
 }
