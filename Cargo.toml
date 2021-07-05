@@ -4,3 +4,6 @@ version = "0.1.0"
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
+pretty_assertions = "0.7"
+assert = "0.0.4"
