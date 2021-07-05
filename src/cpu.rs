@@ -32,35 +32,33 @@ impl Cpu {
                 0xa9 => {
                     self.reg_a = code[self.pc as usize];
                     self.pc += 1;
-                    if self.reg_a == 0x00 {
-                        self.status |= 0b0000_0010;
-                    } else {
-                        self.status &= 0b1111_1101;
-                    }
-                    if self.reg_a & 0b1000_0000 != 0 {
-                        self.status |= 0b1000_0000;
-                    } else {
-                        self.status &= 0b0111_1111;
-                    }
+                    self.status = generate_new_status(self.status, self.reg_a);
                 }
                 0xaa => {
                     self.reg_x = self.reg_a;
-                    if self.reg_a == 0 {
-                        self.status |= 0b0000_0010;
-                    } else {
-                        self.status &= 0b1111_1101;
-                    }
-                    if self.reg_a & 0b1000_0000 != 0 {
-                        self.status |= 0b1000_0000;
-                    } else {
-                        self.status &= 0b0111_1111;
-                    }
+                    self.status = generate_new_status(self.status, self.reg_a);
                 }
                 _ => todo!(),
             }
         }
         Ok(())
     }
+}
+
+fn generate_new_status(old_status: u8, result: u8) -> u8 {
+    let mut status = old_status;
+    if result == 0 {
+        status |= 0b0000_0010;
+    } else {
+        status &= 0b1111_1101;
+    }
+    if result & 0b1000_0000 != 0 {
+        status |= 0b1000_0000;
+    } else {
+        status &= 0b0111_1111;
+    }
+
+    status
 }
 
 #[cfg(test)]
@@ -136,5 +134,13 @@ mod test {
             assert_eq!(cpu.status, 0x80);
             assert_eq!(cpu.pc, 1);
         }
+    }
+
+    #[test]
+    fn status_tests() {
+        // TODO: write these tests
+        assert_eq!(generate_new_status(0x00, 0x00), 0x02);
+        assert_eq!(generate_new_status(0x00, 0x80), 0x80);
+        assert_eq!(generate_new_status(0x80, 0x00), 0x00);
     }
 }
