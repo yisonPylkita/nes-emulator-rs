@@ -27,6 +27,7 @@ impl Cpu {
                 break;
             }
             let opcode = code[self.pc as usize];
+            // TODO: what about PC overflow?
             self.pc += 1;
             match opcode {
                 0xa9 => {
@@ -36,7 +37,11 @@ impl Cpu {
                 }
                 0xaa => {
                     self.reg_x = self.reg_a;
-                    self.status = generate_new_status(self.status, self.reg_a);
+                    self.status = generate_new_status(self.status, self.reg_x);
+                }
+                0xe8 => {
+                    self.reg_x = self.reg_x.wrapping_add(1);
+                    self.status = generate_new_status(self.status, self.reg_x);
                 }
                 _ => todo!(),
             }
@@ -134,6 +139,46 @@ mod test {
             assert_eq!(cpu.status, 0x80);
             assert_eq!(cpu.pc, 1);
         }
+    }
+
+    #[test]
+    fn execute_inx_for_reg_x_between_0_and_7e() {
+        for reg_x in 0x00..=0x7e {
+            let mut cpu = Cpu::new();
+            cpu.reg_x = reg_x;
+            assert_ok!(cpu.execute(vec![0xe8]));
+
+            assert_eq!(cpu.reg_a, 0);
+            assert_eq!(cpu.reg_x, reg_x + 1);
+            assert_eq!(cpu.status, 0x00);
+            assert_eq!(cpu.pc, 1);
+        }
+    }
+
+    #[test]
+    fn execute_inx_for_reg_x_between_7f_and_fe() {
+        for reg_x in 0x7f..=0xfe {
+            let mut cpu = Cpu::new();
+            cpu.reg_x = reg_x;
+            assert_ok!(cpu.execute(vec![0xe8]));
+
+            assert_eq!(cpu.reg_a, 0);
+            assert_eq!(cpu.reg_x, reg_x + 1);
+            assert_eq!(cpu.status, 0x80);
+            assert_eq!(cpu.pc, 1);
+        }
+    }
+
+    #[test]
+    fn execute_inx_for_reg_x_being_ff() {
+        let mut cpu = Cpu::new();
+        cpu.reg_x = 0xff;
+        assert_ok!(cpu.execute(vec![0xe8]));
+
+        assert_eq!(cpu.reg_a, 0);
+        assert_eq!(cpu.reg_x, 0);
+        assert_eq!(cpu.status, 0x02);
+        assert_eq!(cpu.pc, 1);
     }
 
     #[test]
