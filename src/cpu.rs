@@ -1,10 +1,19 @@
+use std::ops::Add;
+
 use anyhow::{anyhow, Result};
+
+enum AddressingMode {
+    // TODO: Check these
+    Immediate,
+    Absolute,
+}
 
 pub struct Cpu {
     pub reg_a: u8,
     pub reg_x: u8,
     pub status: u8,
-    pub pc: u16,
+    pub program_counter: u16,
+    pub memory: [u8; 0xFFFF],
 }
 
 impl Cpu {
@@ -13,7 +22,8 @@ impl Cpu {
             reg_a: 0,
             reg_x: 0,
             status: 0,
-            pc: 0,
+            program_counter: 0,
+            memory: [0; 0xFFFF],
         }
     }
 
@@ -21,18 +31,18 @@ impl Cpu {
         if code.len() > u16::MAX as usize {
             return Err(anyhow!("Code to execute is too big"));
         }
-        self.pc = 0;
+        self.program_counter = 0;
         loop {
-            if self.pc >= code.len() as u16 {
+            if self.program_counter >= code.len() as u16 {
                 break;
             }
-            let opcode = code[self.pc as usize];
+            let opcode = code[self.program_counter as usize];
             // TODO: what about PC overflow?
-            self.pc += 1;
+            self.program_counter += 1;
             match opcode {
                 0xa9 => {
-                    self.reg_a = code[self.pc as usize];
-                    self.pc += 1;
+                    self.reg_a = code[self.program_counter as usize];
+                    self.program_counter += 1;
                     self.status = generate_new_status(self.status, self.reg_a);
                 }
                 0xaa => {
@@ -47,6 +57,39 @@ impl Cpu {
             }
         }
         Ok(())
+    }
+
+    fn mem_read(&self, index: u16) -> u8 {
+        self.memory[index as usize]
+    }
+
+    fn mem_read_u16(&self, index: u16) -> u16 {
+        let low = self.mem_read(index) as u16;
+        let high = self.mem_read(index + 1) as u16;
+        (high << 8) | low
+    }
+
+    fn mem_write(&mut self, index: u16, value: u8) {
+        self.memory[index as usize] = value;
+    }
+    fn mem_write_u16(&mut self, index: u16, value: u16) {
+        let value_low = (value >> 8) as u8;
+        let value_high = (value & 0xFF) as u8;
+        self.mem_write(index, value_low);
+        self.mem_write(index + 1, value_high);
+    }
+
+    fn get_operand_address(&self, mode: AddressingMode) -> u16 {
+        match mode {
+            AddressingMode::Absolute => self.program_counter,
+            AddressingMode::Immediate => self.mem_read_u16(self.program_counter),
+        }
+    }
+
+    fn lda(&mut self, mode: AddressingMode) {
+        let address = self.get_operand_address(mode);
+        let value = self.mem_read(address);
+        self.reg_a = value;
     }
 }
 
@@ -77,7 +120,7 @@ mod test {
         let cpu = Cpu::new();
         assert_eq!(cpu.reg_a, 0);
         assert_eq!(cpu.status, 0);
-        assert_eq!(cpu.pc, 0);
+        assert_eq!(cpu.program_counter, 0);
     }
 
     #[test]
@@ -88,7 +131,7 @@ mod test {
         // TODO: name status bits properly
         assert_eq!(cpu.reg_a, 0x00);
         assert_eq!(cpu.status, 0x02);
-        assert_eq!(cpu.pc, 2);
+        assert_eq!(cpu.program_counter, 2);
     }
 
     #[test]
@@ -99,7 +142,7 @@ mod test {
         // TODO: name status bits properly
         assert_eq!(cpu.reg_a, 0x80);
         assert_eq!(cpu.status, 0x80);
-        assert_eq!(cpu.pc, 2);
+        assert_eq!(cpu.program_counter, 2);
     }
 
     #[test]
@@ -110,7 +153,7 @@ mod test {
         assert_eq!(cpu.reg_a, 0x00);
         assert_eq!(cpu.reg_x, 0x00);
         assert_eq!(cpu.status, 0x02);
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.program_counter, 1);
     }
 
     #[test]
@@ -123,7 +166,7 @@ mod test {
             assert_eq!(cpu.reg_a, reg_a);
             assert_eq!(cpu.reg_x, reg_a);
             assert_eq!(cpu.status, 0x00);
-            assert_eq!(cpu.pc, 1);
+            assert_eq!(cpu.program_counter, 1);
         }
     }
 
@@ -137,7 +180,7 @@ mod test {
             assert_eq!(cpu.reg_a, reg_a);
             assert_eq!(cpu.reg_x, reg_a);
             assert_eq!(cpu.status, 0x80);
-            assert_eq!(cpu.pc, 1);
+            assert_eq!(cpu.program_counter, 1);
         }
     }
 
@@ -151,7 +194,7 @@ mod test {
             assert_eq!(cpu.reg_a, 0);
             assert_eq!(cpu.reg_x, reg_x + 1);
             assert_eq!(cpu.status, 0x00);
-            assert_eq!(cpu.pc, 1);
+            assert_eq!(cpu.program_counter, 1);
         }
     }
 
@@ -165,7 +208,7 @@ mod test {
             assert_eq!(cpu.reg_a, 0);
             assert_eq!(cpu.reg_x, reg_x + 1);
             assert_eq!(cpu.status, 0x80);
-            assert_eq!(cpu.pc, 1);
+            assert_eq!(cpu.program_counter, 1);
         }
     }
 
@@ -178,7 +221,7 @@ mod test {
         assert_eq!(cpu.reg_a, 0);
         assert_eq!(cpu.reg_x, 0);
         assert_eq!(cpu.status, 0x02);
-        assert_eq!(cpu.pc, 1);
+        assert_eq!(cpu.program_counter, 1);
     }
 
     #[test]
